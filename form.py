@@ -2,6 +2,8 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import datetime
+import time
+
 
 # Título
 st.title("Solicitação de Serviços")
@@ -132,6 +134,8 @@ if nome and email and informacoes:
         )
     if submit_button:
         st.warning("Seu formulário foi enviado! Aguarde nosso contato.")
+        time.sleep(15)
+        st.rerun()
     
     
     
