@@ -39,7 +39,7 @@ class calendar():
   def CreateEvent(self, calendarID, dataframe):    
 
     if dataframe['Departamento']: 
-      instituicao = f'{dataframe['Departamento']}/{dataframe['Instituição']}'
+      instituicao = f'{dataframe.Departamento}/{dataframe.Instituição}'
     else: instituicao = dataframe['Instituição']
     titulo = dataframe['Serviço']
     detalhes = f'''
