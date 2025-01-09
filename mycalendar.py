@@ -11,6 +11,23 @@ from googleapiclient.errors import HttpError
 # If modifying these scopes, delete the file token.json.
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
+class AttrDictForJson(dict):
+
+    def __init__(self, attrdict):
+        super().__init__()
+        self.items = attrdict.items
+        self._len = attrdict.__len__
+        # key creation necessary for json.dump to work with CPython 
+        # This is because optimised json bypasses __len__ on CPython
+        if self._len() != 0:
+            self[None] = None
+
+    def __len__(self):
+        return self._len()
+    
+def as_attrdict(val):
+    return AttrDictForJson(val)
+
 class calendar():
   
   def __init__(self):
@@ -28,9 +45,9 @@ class calendar():
       if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
       else:
-    
+        dictionary = as_attrdict(st.secrets.credentials)
         flow = InstalledAppFlow.from_client_secrets_file(
-           json.dumps(dict(st.secrets.credentials), indent=2).encode('utf-8'), scopes=SCOPES
+           json.dumps(dictionary, indent=2).encode('utf-8'), SCOPES
         )
         creds = flow.run_local_server(port=0)
       # Save the credentials for the next run
