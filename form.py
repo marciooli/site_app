@@ -3,6 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import datetime
 import time
+from mycalendar import calendar
 
 
 # Título
@@ -34,15 +35,35 @@ INSTITUICOES = [
     'Empresa ou Instituição Privada'
 ]
 
-# Início do formulário
+# calendarios
+calendarPrymary = "ltapuerj@gmail.com"
+calendarMeet = "7042b7d1f94002434ed5e186c3fb929d0c584ff979f4186bd29a9dd04da69b95@group.calendar.google.com"
+calendarAdmin = "40dbd23a8914741688d55678459c6e49ffa273ef8ec01026b7268515286dea67@group.calendar.google.com"
 
+def DateCheck(calendarID, date):
+    toISO = datetime.datetime.combine(date, datetime.datetime.min.time())
+    timeMin = (toISO - datetime.timedelta(2)).isoformat() + 'Z'
+    timeMax = (toISO + datetime.timedelta(2)).isoformat() + 'Z'
+    #timeMax = timeMax.strftime('%Y-%m-%dT%H:%M:%S%z')
+    call = calendar()
+    lst = call.GetBusy(calendarID, timeMin, timeMax)
+    if lst:
+        busyDates = [
+            datetime.datetime.strptime(
+                x['start'], '%Y-%m-%dT%H:%M:%S%z'
+            ).date() for x in lst
+            ]
+    else: busyDates = []
+    return date in busyDates
+
+# Início do formulário
 servico = st.selectbox('Serviço Requerido',
                         options=SERVICOS,
                         index=0)
 
 nome = st.text_input(label='Nome Completo do Requerente*')
 email = st.text_input("Email para contato*",
-                        placeholder='email@email.com')
+                        placeholder='nome@dominio.com')
 instituicao = st.selectbox('Instituição', 
                             options=INSTITUICOES,
                             index=0)
@@ -54,21 +75,39 @@ if instituicao != 'Empresa ou Instituição Privada':
     responsavel = st.text_input("Nome do Professor ou Técnico vinculado ao ICT")
 
 # Se o serviço for análise instrumental...
-if servico == 'Análise Instrumental':
-    # Escolher o placeholder para o caso de análise instrumental.
-    placeholder = "Insira aqui número de amostras, tipo etc." 
+match servico:
+    case 'Análise Instrumental':
+        # Escolher o placeholder para o caso de análise instrumental.
+        placeholder = "Insira aqui número de amostras, tipo etc." 
 
-    #Fazer aparecer a opção de instrumento e coleta
-    instrumento = st.selectbox('Instrumento',
-                                options=INSTRUMENTOS,
-                                index=0)
-    coleta = st.date_input('Data da Coleta',
-                            min_value=datetime.datetime.now(),
-                            format="DD/MM/YYYY"
-                            )
-    tempo = 6
-
-else: placeholder, tempo = 'Informe os detalhes relevantes como número de envolvidos ou área.', None
+        #Fazer aparecer a opção de instrumento e coleta
+        instrumento = st.selectbox('Instrumento',
+                                    options=INSTRUMENTOS,
+                                    index=0)
+        coleta = st.date_input('Data da Coleta',
+                                min_value=datetime.datetime.now() + datetime.timedelta(2),
+                                max_value=datetime.datetime.now() + datetime.timedelta(180),
+                                format="DD/MM/YYYY"
+                                )
+        check = DateCheck(calendarPrymary, coleta)
+        tempo = 6
+    case 'Curso ou Treinamento':
+        placeholder = 'Informe os detalhes relevantes como número de envolvidos, área de desejo do curso e carga horária.'
+        coleta = st.date_input('Data Requerida',
+                                min_value=datetime.datetime.now() + datetime.timedelta(30),
+                                max_value=datetime.datetime.now() + datetime.timedelta(180),
+                                format="DD/MM/YYYY"
+                                )
+        check = DateCheck(calendarMeet, coleta) | DateCheck(calendarAdmin, coleta)
+        tempo = None
+    case 'Consultoria':
+        placeholder, tempo = 'Escreva aqui informações importantes sobre o tema da consultoria.', None
+        coleta = st.date_input('Data Requerida para Reunião',
+                                min_value=datetime.datetime.now() + datetime.timedelta(2),
+                                max_value=datetime.datetime.now() + datetime.timedelta(180),
+                                format="DD/MM/YYYY"
+                               )
+        check = DateCheck(calendarMeet, coleta) | DateCheck(calendarAdmin, coleta)
 
 informacoes = st.text_area('Observações*',
                             placeholder=placeholder)
@@ -111,7 +150,7 @@ def atualizar_dados(nome = None,
     # Estabelecendo conexão com Google Sheets
     # Pegar dados antigos
     conn = st.connection("gsheets", type=GSheetsConnection)
-    dados_existentes = conn.read(worksheet='Servicos', 
+    dados_existentes = conn.read(worksheet='2025', 
                                 usecols=list(range(12)),
                                 ttl=5
                                 )
@@ -120,22 +159,51 @@ def atualizar_dados(nome = None,
     dados_atualizados = pd.concat([dados_existentes, novos_dados], ignore_index=True)
     
     # Enviar para o google sheet
-    conn.update(worksheet='Servicos', data = dados_atualizados)
+    conn.update(worksheet='2025', data = dados_atualizados)
 
-st.text(departamento)
+# Adicionar os novos dados à agenda
+novos_dados = pd.DataFrame(
+       [{
+            "Nome" : nome,
+            "Instituição" : instituicao,
+            "Nome da Instituição" : nome_instituicao,
+            "Departamento" : departamento,
+            "Responsável" : responsavel,
+            "Email" : email,
+            "Serviço" : servico,
+            "Instrumento" : instrumento,
+            "Data de Coleta": coleta.strftime("%d/%m/%Y"),
+            "Observações" : informacoes,
+            "Dia de Preenchimento" : data,
+            "Tempo de Análise" : tempo
+        }]
+    )
 
-if nome and email and informacoes: 
-    submit_button = st.button(
-        'Enviar',
-        type='primary',
-        on_click= atualizar_dados,
-        args=(nome, instituicao, nome_instituicao, departamento, responsavel,
-            email, servico, instrumento, coleta, informacoes, data, tempo)
-        )
-    if submit_button:
-        st.warning("Seu formulário foi enviado! Aguarde nosso contato.")
-        time.sleep(15)
-        st.rerun()
+if nome and email and informacoes:
+    if not check:
+        submit_button = st.button(
+            'Enviar',
+            type='primary',
+            on_click= atualizar_dados,
+            args=(nome, instituicao, nome_instituicao, departamento, responsavel,
+                email, servico, instrumento, coleta, informacoes, data, tempo)
+            )
+        if submit_button:
+            match servico:
+                case "Consultoria":
+                    call = calendar()
+                    call.CreateEvent(calendarAdmin, novos_dados)
+                case "Curso ou Treinamento":
+                    call = calendar()
+                    call.CreateEvent(calendarAdmin, novos_dados)
+                case "Análise Instrumental":
+                    call = calendar()
+                    call.CreateEvent(calendarPrymary, novos_dados)
+            st.warning("Seu formulário foi enviado! Aguarde nosso contato.")
+            time.sleep(15)
+            st.rerun()
+    else: 
+        st.error("Data ocupada, escolha uma outra data!")
     
     
     

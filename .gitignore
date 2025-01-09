@@ -1,4 +1,9 @@
 .streamlit/secrets.toml
 .venv
-# mycalendar.py
+mycalendar.py
 credentials.json
+test.ipynb
+test.py
+token.json
+graphs.py
+__pycache__
