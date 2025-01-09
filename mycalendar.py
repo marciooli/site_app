@@ -30,7 +30,7 @@ class calendar():
       else:
     
         flow = InstalledAppFlow.from_client_secrets_file(
-           st.secrets.credentials, scopes=SCOPES
+           json.dumps(st.secrets.credentials, indent=2).encode('utf-8'), scopes=SCOPES
         )
         creds = flow.run_local_server(port=0)
       # Save the credentials for the next run
