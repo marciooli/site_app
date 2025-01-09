@@ -1,5 +1,6 @@
 import os.path
 import datetime
+import streamlit as st
 import json
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -28,7 +29,7 @@ class calendar():
         creds.refresh(Request())
       else:
         flow = InstalledAppFlow.from_client_secrets_file(
-            "credentials.json", SCOPES
+           json.loads(st.secrets['credentials']), SCOPES
         )
         creds = flow.run_local_server(port=0)
       # Save the credentials for the next run

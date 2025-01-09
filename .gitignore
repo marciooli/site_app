@@ -1,6 +1,7 @@
 .streamlit/secrets.toml
 .venv
 credentials.json
+mycalendar.py
 test.ipynb
 test.py
 token.json
