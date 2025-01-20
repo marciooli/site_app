@@ -48,7 +48,7 @@ class calendar():
         dic = dict(st.secrets['credentials'])
         user_encode_data = json.dumps(dic, indent=2).encode('utf-8')
         flow = InstalledAppFlow.from_client_config(
-           user_encode_data.encode('utf-8'), SCOPES
+           user_encode_data.decode('utf-8'), SCOPES
         )
         creds = flow.run_local_server(port=0)
       # Save the credentials for the next run
