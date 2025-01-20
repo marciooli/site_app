@@ -45,7 +45,7 @@ class calendar():
       if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
       else:
-        dic = dict(st.secrets['credentials.web'])
+        dic = dict(st.secrets['credentials'])
         user_encode_data = json.dumps(dic, indent=2).encode('utf-8')
         flow = InstalledAppFlow.from_client_config(
            user_encode_data.decode('utf-8'), SCOPES
