@@ -45,9 +45,10 @@ class calendar():
       if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
       else:
-        dictionary = as_attrdict(st.secrets.credentials)
-        flow = InstalledAppFlow.from_client_secrets_file(
-           json.dumps(dictionary, indent=2).encode('utf-8'), SCOPES
+        dic = dict(st.secrets['credentials'])
+        user_encode_data = json.dumps(dic, indent=2).encode('utf-8')
+        flow = InstalledAppFlow.from_client_config(
+           user_encode_data, SCOPES
         )
         creds = flow.run_local_server(port=0)
       # Save the credentials for the next run
