@@ -1,210 +1,169 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import datetime
-import time
-from mycalendar import calendar
+import datetime as dt
+import plotly.graph_objects as go
+import plotly.express as px
 
-
-# Título
-st.title("Solicitação de Serviços")
-
-# Listas de serviços, instrumentos e instituições
-SERVICOS = [
-    'Análise Instrumental',
-    'Consultoria',
-    'Curso ou Treinamento'
-]
-
-INSTRUMENTOS =[
-    'Espectrofotômetro UV/Vis',
-    'Epectrofotômetro NIR',
-    'Espectrofotômetro Raman',
-    'Espectrofluorímetro',
-    'Microscópio Confocal Raman'
-]
-
-INSTITUICOES = [
-    'UERJ',
-    'UFRJ',
-    'UFF',
-    'UNIRIO',
-    'UFFRJ',
-    'UENF',
-    'Outra IES ou ICT',
-    'Empresa ou Instituição Privada'
-]
-
-# calendarios
-calendarPrymary = "ltapuerj@gmail.com"
-calendarMeet = "7042b7d1f94002434ed5e186c3fb929d0c584ff979f4186bd29a9dd04da69b95@group.calendar.google.com"
-calendarAdmin = "40dbd23a8914741688d55678459c6e49ffa273ef8ec01026b7268515286dea67@group.calendar.google.com"
-
-def DateCheck(calendarID, date):
-    toISO = datetime.datetime.combine(date, datetime.datetime.min.time())
-    timeMin = (toISO - datetime.timedelta(2)).isoformat() + 'Z'
-    timeMax = (toISO + datetime.timedelta(2)).isoformat() + 'Z'
-    #timeMax = timeMax.strftime('%Y-%m-%dT%H:%M:%S%z')
-    call = calendar()
-    lst = call.GetBusy(calendarID, timeMin, timeMax)
-    if lst:
-        busyDates = [
-            datetime.datetime.strptime(
-                x['start'], '%Y-%m-%dT%H:%M:%S%z'
-            ).date() for x in lst
-            ]
-    else: busyDates = []
-    return date in busyDates
-
-# Início do formulário
-servico = st.selectbox('Serviço Requerido',
-                        options=SERVICOS,
-                        index=0)
-
-nome = st.text_input(label='Nome Completo do Requerente*')
-email = st.text_input("Email para contato*",
-                        placeholder='nome@dominio.com')
-instituicao = st.selectbox('Instituição', 
-                            options=INSTITUICOES,
-                            index=0)
-if instituicao == 'Outra IES ou ICT' or 'Empresa ou Instituição Privada':
-    nome_instituicao = st.text_input('Nome da Instituição ou Empresa')
-
-departamento = st.text_input('Departamento')
-if instituicao != 'Empresa ou Instituição Privada':
-    responsavel = st.text_input("Nome do Professor ou Técnico vinculado ao ICT")
-
-# Se o serviço for análise instrumental...
-match servico:
-    case 'Análise Instrumental':
-        # Escolher o placeholder para o caso de análise instrumental.
-        placeholder = "Insira aqui número de amostras, tipo etc." 
-
-        #Fazer aparecer a opção de instrumento e coleta
-        instrumento = st.selectbox('Instrumento',
-                                    options=INSTRUMENTOS,
-                                    index=0)
-        coleta = st.date_input('Data da Coleta',
-                                min_value=datetime.datetime.now() + datetime.timedelta(2),
-                                max_value=datetime.datetime.now() + datetime.timedelta(180),
-                                format="DD/MM/YYYY"
-                                )
-        check = DateCheck(calendarPrymary, coleta)
-        tempo = 6
-    case 'Curso ou Treinamento':
-        placeholder = 'Informe os detalhes relevantes como número de envolvidos, área de desejo do curso e carga horária.'
-        coleta = st.date_input('Data Requerida',
-                                min_value=datetime.datetime.now() + datetime.timedelta(30),
-                                max_value=datetime.datetime.now() + datetime.timedelta(180),
-                                format="DD/MM/YYYY"
-                                )
-        check = DateCheck(calendarMeet, coleta) | DateCheck(calendarAdmin, coleta)
-        tempo = None
-    case 'Consultoria':
-        placeholder, tempo = 'Escreva aqui informações importantes sobre o tema da consultoria.', None
-        coleta = st.date_input('Data Requerida para Reunião',
-                                min_value=datetime.datetime.now() + datetime.timedelta(2),
-                                max_value=datetime.datetime.now() + datetime.timedelta(180),
-                                format="DD/MM/YYYY"
-                               )
-        check = DateCheck(calendarMeet, coleta) | DateCheck(calendarAdmin, coleta)
-
-informacoes = st.text_area('Observações*',
-                            placeholder=placeholder)
-
-# Indicação dos campos obrigatórios
-st.markdown('**campos obrigatórios*')
-
-data = datetime.datetime.now()
-
-def atualizar_dados(nome = None, 
-                    instituicao = None, 
-                    nome_instituicao = None, 
-                    departamento= None, 
-                    responsavel = None,
-                    email = None, 
-                    servico = None, 
-                    instrumento = None, 
-                    coleta = None, 
-                    informacoes = None, 
-                    data = None, 
-                    tempo = None):
-    # Criar um novo dataframe
-    novos_dados = pd.DataFrame(
-       [{
-            "Nome" : nome,
-            "Instituição" : instituicao,
-            "Nome da Instituição" : nome_instituicao,
-            "Departamento" : departamento,
-            "Responsável" : responsavel,
-            "Email" : email,
-            "Serviço" : servico,
-            "Instrumento" : instrumento,
-            "Data de Coleta": coleta.strftime("%d/%m/%Y"),
-            "Observações" : informacoes,
-            "Dia de Preenchimento" : data,
-            "Tempo de Análise" : tempo
-        }]
-    )
-    
-    # Estabelecendo conexão com Google Sheets
-    # Pegar dados antigos
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    dados_existentes = conn.read(worksheet='2025', 
+st.set_page_config(layout="wide")
+# Buscar dados na tabela
+data = dt.datetime.now()
+conn = st.connection("gsheets", type=GSheetsConnection)
+dados = conn.read(worksheet='Sheet1', 
                                 usecols=list(range(12)),
                                 ttl=5
                                 )
-    dados_existentes = dados_existentes[dados_existentes['Nome'].notna()]
-    # Juntar os dois daframes
-    dados_atualizados = pd.concat([dados_existentes, novos_dados], ignore_index=True)
-    
-    # Enviar para o google sheet
-    conn.update(worksheet='2025', data = dados_atualizados)
+dados = dados[dados['Nome'].notna()]
 
-# Adicionar os novos dados à agenda
-novos_dados = pd.DataFrame(
-       [{
-            "Nome" : nome,
-            "Instituição" : instituicao,
-            "Nome da Instituição" : nome_instituicao,
-            "Departamento" : departamento,
-            "Responsável" : responsavel,
-            "Email" : email,
-            "Serviço" : servico,
-            "Instrumento" : instrumento,
-            "Data de Coleta": coleta.strftime("%d/%m/%Y"),
-            "Observações" : informacoes,
-            "Dia de Preenchimento" : data,
-            "Tempo de Análise" : tempo
-        }]
+col1, col2, col3 = st.columns([1, 2, 2], vertical_alignment="center", border =True)
+
+format = "%I:%M %p"
+lst = []
+for i in range(dados.shape[0]):
+    td = dt.datetime.strptime(dados['Horário Final'].iloc[i], format) - dt.datetime.strptime(dados['Horário Inicial'].iloc[i], format)
+    lst.append(int(td.total_seconds()/3600))
+
+dados['Horas trabalhadas'] = lst
+
+meses = []
+anos = []
+
+for i in range(dados.shape[0]):
+    m, d, a = dados["Data de Coleta"].iloc[i].split("-")
+    meses.append(m+"/"+a)
+    anos.append(a)
+
+dados["Mês"] = meses
+dados["Mês"] = pd.to_datetime(dados['Mês'],format='%m/%Y').dt.to_period('M')
+dados["Ano"] = anos
+dados2 = dados.copy()
+
+with col1:
+    ano = st.selectbox("Selecione o ano:", dados["Ano"].unique(), index=0)
+    dados = dados[dados["Ano"] == ano]
+
+    if ano == "2024": 
+            delta1, delta2, delta3 = 0, 0, 0
+    else: 
+        dados_anterior = dados2[dados2["Ano"] == str(int(ano)-1)]
+        horas_anterior = dados_anterior['Horas trabalhadas'].sum()
+        departamentos_anterior = len(pd.unique(dados_anterior["Departamento"]))
+        agendamentos_anterior = dados_anterior.shape[0]
+        delta1 = str(dados['Horas trabalhadas'].sum() - horas_anterior)
+        delta2 = str(len(pd.unique(dados["Departamento"])) - departamentos_anterior)
+        delta3 = str(dados.shape[0] - agendamentos_anterior)
+
+    st.metric(
+    label="Horas Totais",
+    value=dados['Horas trabalhadas'].sum(),
+    delta=delta1
     )
 
-if nome and email and informacoes:
-    if not check:
-        submit_button = st.button(
-            'Enviar',
-            type='primary',
-            on_click= atualizar_dados,
-            args=(nome, instituicao, nome_instituicao, departamento, responsavel,
-                email, servico, instrumento, coleta, informacoes, data, tempo)
-            )
-        if submit_button:
-            match servico:
-                case "Consultoria":
-                    call = calendar()
-                    call.CreateEvent(calendarAdmin, novos_dados)
-                case "Curso ou Treinamento":
-                    call = calendar()
-                    call.CreateEvent(calendarAdmin, novos_dados)
-                case "Análise Instrumental":
-                    call = calendar()
-                    call.CreateEvent(calendarPrymary, novos_dados)
-            st.warning("Seu formulário foi enviado! Aguarde nosso contato.")
-            time.sleep(15)
-            st.rerun()
-    else: 
-        st.error("Data ocupada, escolha uma outra data!")
+    st.metric(
+    label = "Departamentos",
+    value=len(pd.unique(dados["Departamento"])),
+    delta=delta2
+    )
+
+    st.metric(
+        label = "Agendamentos",
+        value = dados.shape[0],
+        delta=delta3
+        )
     
-    
-    
-    
+    dados3 = conn.read(
+        worksheet='Sheet2', 
+        usecols=list(range(12)),
+        ttl=5,
+        )
+    dados3 = dados3[dados3['Nome completo'].notna()]
+    st.metric(
+        label="Integrantes",
+        value = dados3.shape[0]
+    )
+
+lst = []
+for i in range(dados.shape[0]):
+    lst.append(dados["Departamento"].iloc[i] + "/" + dados["Instituição ou Empresa"].iloc[i])
+dados["Departamento e Instituição"] = lst
+
+
+graph1_table = dados[["Departamento e Instituição", "Horas trabalhadas"]].groupby("Departamento e Instituição").sum()
+graph2_table = dados[["Instrumento Requisitado", "Horas trabalhadas"]].groupby("Instrumento Requisitado").sum()
+
+layout1 = go.Layout(
+    {
+        "showlegend" : False
+    }
+)
+layout2 = go.Layout(
+    {
+        "showlegend" : False
+    }
+)
+
+with col2:
+    st.markdown("Horas por Departamento")
+    st.plotly_chart(
+        go.Figure(data = [go.Pie(
+            labels=graph1_table.index,
+            values=graph1_table["Horas trabalhadas"],
+            hole = .4,
+            textinfo = "none",
+            marker_colors=px.colors.qualitative.Vivid,
+            )],
+            layout=layout1
+        )
+    )
+
+with col3:
+    st.markdown("Horas por Instrumento")
+    st.plotly_chart(
+        go.Figure(data = [go.Pie(
+            labels=graph2_table.index,
+            values=graph2_table["Horas trabalhadas"],
+            hole = .4,
+            textinfo = "none",
+            marker_colors=px.colors.qualitative.Vivid_r,
+            )],
+            layout=layout2,
+            
+        ))
+
+graph3_table = dados2[["Mês", "Horas trabalhadas"]].groupby("Mês").sum()
+index = pd.date_range(dados2["Mês"].min().to_timestamp(), dt.datetime.now(), freq="ME").to_period("M")#.to_timestamp()
+serie = pd.Series(index = index)
+graph3_table = pd.concat([graph3_table, serie[~serie.index.isin(graph3_table.index)]]).sort_index()
+graph3_table = graph3_table.drop([0], axis=1).fillna(0).astype("Int64")
+
+fig = go.Figure()
+fig.add_trace(
+    go.Scatter(
+        x=graph3_table.index.map(str), 
+        y=graph3_table["Horas trabalhadas"],
+        mode="lines+markers",
+        line=dict(color="#4C78A8")
+        )
+)
+fig.update_layout(
+    xaxis=dict(
+        rangeselector=dict(
+            buttons=list([
+                dict(count=6,
+                     label="6m",
+                     step="month",
+                     stepmode="backward"),
+                dict(count=1,
+                     label="12m",
+                     step="year",
+                     stepmode="todate"),
+                dict(step="all")
+            ])
+        ),
+        rangeslider=dict(
+            visible=True
+        ),
+        type="date"
+    )
+)
+st.plotly_chart(fig)
