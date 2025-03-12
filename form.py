@@ -6,6 +6,11 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 st.set_page_config(layout="wide")
+
+# Utilizar o estilo do documento .css
+with open( ".streamlit\style.css" ) as css:
+    st.markdown( f'<style>{css.read()}</style>' , unsafe_allow_html= True)
+
 # Buscar dados na tabela
 data = dt.datetime.now()
 conn = st.connection("gsheets", type=GSheetsConnection)
