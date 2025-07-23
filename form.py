@@ -44,7 +44,8 @@ dados["Ano"] = anos
 dados2 = dados.copy()
 
 with col1:
-    ano = st.selectbox("Selecione o ano:", dados["Ano"].unique(), index=0)
+    anos_disponiveis = sorted(dados["Ano"].unique(), reverse=True)
+    ano = st.selectbox("Selecione o ano:", anos_disponiveis, index=0)
     dados = dados[dados["Ano"] == ano]
 
     if ano == "2024": 
